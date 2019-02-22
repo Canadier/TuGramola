@@ -8,25 +8,28 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
-
 import com.squareup.picasso.Picasso;
 
 import tablerocolores.cfic.edu.tugramola.R;
-import tablerocolores.cfic.edu.tugramola.activities.MainActivity;
+import tablerocolores.cfic.edu.tugramola.activities.DetalleCancionActivity;
+
+import tablerocolores.cfic.edu.tugramola.dao.BaseDatosCanciones;
+
 import tablerocolores.cfic.edu.tugramola.dto.Cancion;
-import tablerocolores.cfic.edu.tugramola.dto.DetalleCancion;
+import tablerocolores.cfic.edu.tugramola.fragments.Fragment_detalle_cancion;
+import tablerocolores.cfic.edu.tugramola.fragments.Fragment_main;
 
 
 public class CancionHolder extends android.support.v7.widget.RecyclerView.ViewHolder
 {
     private TextView id, artista, cancion;
-    private ImageView imageView,imagenMedia,imagenPlaying;
+    private ImageView imageView,imagenMedia,imagenPlaying,imageFavorito;
     private Context contexto;
     private String cancionURL;
-    private boolean playingThis,play;
+    private boolean playingThis,play,favorita;
     private Cancion cancionObj;
     private MediaPlayer mp;
+    private static BaseDatosCanciones baseDatosCanciones;
 
 
     //CONSTRUCTOR
@@ -39,7 +42,11 @@ public class CancionHolder extends android.support.v7.widget.RecyclerView.ViewHo
         this.cancion = itemView.findViewById(R.id.cancion);
         this.imageView = itemView.findViewById(R.id.imageView);
         this.imagenMedia = itemView.findViewById(R.id.imagenMedia);
+        this.imageFavorito=itemView.findViewById(R.id.imagenFavorito);
         this.contexto=contexto;
+        this.favorita=false;
+
+
         this.cancionURL="";
         this.play=false;
         this.playingThis=false;
@@ -49,6 +56,26 @@ public class CancionHolder extends android.support.v7.widget.RecyclerView.ViewHo
             public void onClick(View v) {
                 //irDetalle();
             }});
+
+        imageFavorito.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                if (favorita)
+                {
+                    Picasso.with(contexto).load(R.drawable.faviconoff).into(imageFavorito);
+                    baseDatosCanciones=Fragment_main.getBaseDatosCanciones();
+                    baseDatosCanciones.eliminarCancion(cancionObj.getTrackId());
+                }
+                else
+                    {
+                    Picasso.with(contexto).load(R.drawable.faviconon).into(imageFavorito);
+                    baseDatosCanciones=Fragment_main.getBaseDatosCanciones();
+                    baseDatosCanciones.insertarCancion(cancionObj);
+                }
+                favorita=!favorita;
+             }
+        });
 
         imageView.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -62,11 +89,11 @@ public class CancionHolder extends android.support.v7.widget.RecyclerView.ViewHo
 
                 //Toast.makeText(contexto,"En el PLAY",Toast.LENGTH_SHORT).show();
 
-                   mp=MainActivity.getReproductor();
-                   imagenPlaying=MainActivity.getPlayButton();
+                   mp=Fragment_main.getReproductor();
+                   imagenPlaying=Fragment_main.getPlayButton();
                    play=playingThis;
 
-                   if (MainActivity.isPlay())
+                   if (Fragment_main.isPlay())
                     {   pararCancion(v);
                         if (!play)
                             {//Pulso play en cancion nueva
@@ -86,7 +113,7 @@ private void pararCancion(View v)
        mp.stop();
        mp.reset();
        playingThis = false;
-       MainActivity.setPlay(false);
+       Fragment_main.setPlay(false);
 
        if (imagenPlaying != null)
            Picasso.with(contexto).load(android.R.drawable.ic_media_play).into(imagenPlaying);
@@ -108,10 +135,10 @@ private void reproducirCancion (View v)
        mp.prepare();
        mp.setVolume(100, 100);
        playingThis = true;
-       MainActivity.setPlay(true);
+       Fragment_main.setPlay(true);
        mp.start();
 
-       MainActivity.setPlayButton((ImageView) v);
+       Fragment_main.setPlayButton((ImageView) v);
        Picasso.with(contexto).load(android.R.drawable.ic_media_pause).into((ImageView) v);
    }
    catch (IllegalStateException  e)
@@ -133,15 +160,46 @@ public void actualizarHolder (CancionHolder cancionHolder, Cancion c)
         cancionHolder.cancion.setText(c.getTrackName());
         cancionHolder.cancionURL=c.getPreviewUrl();
         cancionHolder.cancionObj=c;
+        try
+            {
+                this.favorita=Fragment_main.getBaseDatosCanciones().buscarCancion(cancionObj.getTrackId());
+            }
+        catch (Exception e)
+            {
+            this.favorita=false;
+            }
+
+        if (this.favorita)
+            Picasso.with(contexto).load(R.drawable.faviconon).into(imageFavorito);
+        else
+            Picasso.with(contexto).load(R.drawable.faviconoff).into(imageFavorito);
+
         Picasso.with(contexto).load(imagenTxt).into(imageView);
 
     }
     private void irDetalle()
     {   //Toast.makeText(contexto,"Ir DETALLE",Toast.LENGTH_SHORT).show();
-        Intent intent = new Intent(contexto,DetalleCancion.class);
+        Intent intent = new Intent(contexto,DetalleCancionActivity.class);
         Bundle bundle = new Bundle();
         bundle.putSerializable("cancion",cancionObj);
         intent.putExtras(bundle);
+        //Detengo la cancion y pongo el boton de PAUSE a PLAY
+        pararCancion(Fragment_main.getPlayButton());
+
         contexto.startActivity(intent);
     }
-}//FIN CLASE CANCIONHOLDER
+    private void irDetalleFragment()
+    {   pararCancion(Fragment_main.getPlayButton());
+
+        Bundle bundle = new Bundle();
+        bundle.putSerializable("cancion",cancionObj);
+
+        Fragment_detalle_cancion fr=new Fragment_detalle_cancion();
+        fr.setArguments(bundle);
+
+        fr.getActivity().getSupportFragmentManager().beginTransaction()
+                .replace(R.id.main_content,fr)
+                .addToBackStack(null)
+                .commit();
+    }
+}
